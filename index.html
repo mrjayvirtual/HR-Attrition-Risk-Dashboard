@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>HR Attrition Risk Dashboard</title>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body style="margin:0;">
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useMemo } = React;
+
+const EMPLOYEES = [
+  { dept: 'Engineering', tenure: 2.1, status: 'Active', satisfaction: 7.8, salaryBand: 'Mid' },
+  { dept: 'Engineering', tenure: 0.8, status: 'Left', satisfaction: 4.2, salaryBand: 'Junior' },
+  { dept: 'Sales', tenure: 3.4, status: 'Active', satisfaction: 8.1, salaryBand: 'Senior' },
+  { dept: 'Sales', tenure: 1.1, status: 'Left', satisfaction: 3.9, salaryBand: 'Junior' },
+  { dept: 'Sales', tenure: 0.6, status: 'Left', satisfaction: 4.5, salaryBand: 'Junior' },
+  { dept: 'Support', tenure: 1.9, status: 'Active', satisfaction: 6.7, salaryBand: 'Mid' },
+  { dept: 'Support', tenure: 0.4, status: 'Left', satisfaction: 3.1, salaryBand: 'Junior' },
+  { dept: 'Product', tenure: 4.2, status: 'Active', satisfaction: 8.6, salaryBand: 'Senior' },
+  { dept: 'Product', tenure: 2.7, status: 'Active', satisfaction: 7.4, salaryBand: 'Mid' },
+  { dept: 'Engineering', tenure: 5.1, status: 'Active', satisfaction: 8.9, salaryBand: 'Senior' },
+  { dept: 'Support', tenure: 0.9, status: 'Left', satisfaction: 3.8, salaryBand: 'Junior' },
+  { dept: 'Sales', tenure: 2.3, status: 'Active', satisfaction: 7.0, salaryBand: 'Mid' },
+];
+
+function avg(rows, key) { return rows.length ? rows.reduce((a, r) => a + r[key], 0) / rows.length : 0; }
+function aggregateCount(rows, key) {
+  const m = {};
+  rows.forEach(r => { m[r[key]] = (m[r[key]] || 0) + 1; });
+  return Object.entries(m).map(([k, v]) => ({ key: k, value: v })).sort((a, b) => b.value - a.value);
+}
+
+function HRDashboard() {
+  const [dept, setDept] = useState('All');
+  const depts = ['All', ...Array.from(new Set(EMPLOYEES.map(e => e.dept)))];
+
+  const filtered = useMemo(
+    () => dept === 'All' ? EMPLOYEES : EMPLOYEES.filter(e => e.dept === dept),
+    [dept]
+  );
+
+  const left = filtered.filter(e => e.status === 'Left');
+  const active = filtered.filter(e => e.status === 'Active');
+  const attritionRate = filtered.length ? left.length / filtered.length : 0;
+  const avgTenureLeft = avg(left, 'tenure');
+  const avgSatisfactionLeft = avg(left, 'satisfaction');
+  const avgSatisfactionActive = avg(active, 'satisfaction');
+
+  const byDeptTotal = aggregateCount(EMPLOYEES, 'dept');
+  const byDeptLeft = aggregateCount(EMPLOYEES.filter(e => e.status === 'Left'), 'dept');
+  const deptRiskData = byDeptTotal.map(d => {
+    const leftCount = byDeptLeft.find(l => l.key === d.key)?.value || 0;
+    return { dept: d.key, rate: d.value ? leftCount / d.value : 0, total: d.value };
+  }).sort((a, b) => b.rate - a.rate);
+  const maxRate = Math.max(...deptRiskData.map(d => d.rate), 0.01);
+
+  const bandLeft = aggregateCount(left, 'salaryBand');
+  const maxBand = Math.max(...bandLeft.map(b => b.value), 1);
+
+  const riskLevel = attritionRate > 0.3 ? 'HIGH' : attritionRate > 0.15 ? 'ELEVATED' : 'STABLE';
+  const riskColor = attritionRate > 0.3 ? '#C0392B' : attritionRate > 0.15 ? '#C9892B' : '#2E7D5B';
+
+  return (
+    <div style={{ background: '#0E0F11', minHeight: '100vh', fontFamily: "'IBM Plex Sans', system-ui, sans-serif", color: '#E8E9EA', padding: '26px 18px 60px' }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+        .num3 { font-family: 'IBM Plex Mono', monospace; }
+        .card3 { background: #16181B; border: 1px solid #25282C; border-radius: 6px; }
+        .bar3 { transition: width 0.6s ease; }
+        .pill3 { transition: all 0.15s ease; }
+      `}</style>
+
+      <div style={{ marginBottom: 20 }}>
+        <div className="num3" style={{ fontSize: 10.5, color: '#6E7378', letterSpacing: 2, textTransform: 'uppercase', marginBottom: 6 }}>
+          People Analytics · Q2 Snapshot
+        </div>
+        <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0, letterSpacing: -0.3 }}>
+          Attrition Risk Report
+        </h1>
+      </div>
+
+      <div style={{ display: 'flex', gap: 8, marginBottom: 18, flexWrap: 'wrap' }}>
+        {depts.map(d => (
+          <button
+            key={d}
+            onClick={() => setDept(d)}
+            className="pill3"
+            style={{
+              padding: '6px 13px', borderRadius: 4, fontSize: 12, fontWeight: 500,
+              border: dept === d ? '1px solid #5B9DD9' : '1px solid #25282C',
+              background: dept === d ? 'rgba(91,157,217,0.1)' : 'transparent',
+              color: dept === d ? '#5B9DD9' : '#9098A0', cursor: 'pointer'
+            }}
+          >
+            {d}
+          </button>
+        ))}
+      </div>
+
+      <div className="card3" style={{ padding: '20px 16px', marginBottom: 10, borderColor: riskColor + '40' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div>
+            <div style={{ fontSize: 10.5, color: '#6E7378', textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: 8 }}>
+              Attrition Rate
+            </div>
+            <div className="num3" style={{ fontSize: 42, fontWeight: 700, lineHeight: 1, color: '#F0F1F2' }}>
+              {(attritionRate * 100).toFixed(1)}%
+            </div>
+          </div>
+          <div style={{
+            padding: '5px 11px', borderRadius: 4, fontSize: 11, fontWeight: 700, letterSpacing: 1,
+            background: riskColor + '20', color: riskColor, marginTop: 4
+          }}>
+            {riskLevel}
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 22, marginTop: 14, paddingTop: 14, borderTop: '1px solid #25282C' }}>
+          <div>
+            <div className="num3" style={{ fontSize: 15, fontWeight: 600, color: '#E8E9EA' }}>{left.length} / {filtered.length}</div>
+            <div style={{ fontSize: 10.5, color: '#6E7378' }}>Left / Headcount</div>
+          </div>
+          <div>
+            <div className="num3" style={{ fontSize: 15, fontWeight: 600, color: '#E8E9EA' }}>{avgTenureLeft.toFixed(1)} yrs</div>
+            <div style={{ fontSize: 10.5, color: '#6E7378' }}>Avg tenure at exit</div>
+          </div>
+        </div>
+      </div>
+
+      <div className="card3" style={{ padding: '15px 16px', marginBottom: 14, borderLeft: '3px solid #5B9DD9' }}>
+        <div style={{ fontSize: 10.5, color: '#5B9DD9', textTransform: 'uppercase', letterSpacing: 1, fontWeight: 600, marginBottom: 8 }}>
+          ⚠ Signal
+        </div>
+        <div style={{ fontSize: 13, color: '#C5C9CD', lineHeight: 1.5 }}>
+          Employees who left scored <span className="num3" style={{ color: '#C0392B', fontWeight: 600 }}>{avgSatisfactionLeft.toFixed(1)}/10</span> on satisfaction vs <span className="num3" style={{ color: '#2E7D5B', fontWeight: 600 }}>{avgSatisfactionActive.toFixed(1)}/10</span> for those who stayed.
+        </div>
+      </div>
+
+      <div className="card3" style={{ padding: '16px 14px', marginBottom: 14 }}>
+        <div style={{ fontSize: 10.5, color: '#6E7378', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>Attrition Rate by Department</div>
+        {deptRiskData.map((d, i) => (
+          <div key={i} style={{ marginBottom: 10 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5, marginBottom: 4 }}>
+              <span style={{ color: '#E8E9EA', fontWeight: 500 }}>{d.dept}</span>
+              <span className="num3" style={{ color: '#9098A0' }}>{(d.rate * 100).toFixed(0)}% ({d.total} total)</span>
+            </div>
+            <div style={{ height: 6, background: '#25282C', borderRadius: 3 }}>
+              <div className="bar3" style={{
+                height: '100%', width: `${(d.rate / maxRate) * 100}%`,
+                background: d.rate > 0.3 ? '#C0392B' : d.rate > 0.15 ? '#C9892B' : '#2E7D5B',
+                borderRadius: 3
+              }} />
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="card3" style={{ padding: '16px 14px', marginBottom: 14 }}>
+        <div style={{ fontSize: 10.5, color: '#6E7378', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>Leavers by Salary Band</div>
+        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 14, height: 90 }}>
+          {bandLeft.map((b, i) => (
+            <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+              <div className="num3" style={{ fontSize: 13, fontWeight: 600, color: '#E8E9EA' }}>{b.value}</div>
+              <div className="bar3" style={{
+                width: '100%', height: `${(b.value / maxBand) * 60}px`,
+                background: '#5B9DD9', borderRadius: '3px 3px 0 0'
+              }} />
+              <div style={{ fontSize: 11, color: '#9098A0' }}>{b.key}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ marginTop: 18, fontSize: 11, color: '#454850', textAlign: 'center' }}>
+        Sample data for portfolio demonstration · built by JayVirtual
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<HRDashboard />);
+</script>
+</body>
+</html>
